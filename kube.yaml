@@ -1,0 +1,130 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gitweb
+  labels:
+    name: gitweb
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: gitweb
+  creationTimestamp: null
+  labels:
+    service: gitweb
+  name: gitweb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: gitweb
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        service: gitweb
+    spec:
+      containers:
+        - image: cr.dev.saveonsp.com/gitweb
+          name: gitweb
+          ports:
+            - containerPort: 80
+            - containerPort: 22
+          volumeMounts:
+            - name: keys-storage
+              mountPath: /mnt/keys
+            - name: repositories-storage
+              mountPath: /home/git/repositories
+          resources:
+            limits:
+              cpu: "1"
+              memory: "4Gi"
+            requests:
+              cpu: "0.5"
+              memory: "2Gi"
+          env:
+            - name: PORT
+              value: "80"
+          imagePullPolicy: Always
+      volumes:
+        - name: keys-storage
+          hostPath:
+            path: /data/kube/gitweb-keys
+            type: Directory
+        - name: repositories-storage
+          persistentVolumeClaim:
+            claimName: repositories-storage-claim
+      restartPolicy: Always
+status: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: gitweb
+  creationTimestamp: null
+  labels:
+    service: gitweb
+  name: gitweb
+spec:
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+    - name: ssh
+      port: 2222
+      targetPort: 22
+      protocol: TCP
+  selector:
+    service: gitweb
+status:
+  loadBalancer: {}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: gitweb
+  name: http-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/client-body-buffer-size: "1m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+    nginx.ingress.kubernetes.io/client-body-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "500m"
+    nginx.ingress.kubernetes.io/server-snippet: |
+      http2_max_header_size 16k;
+      http2_max_field_size 16k;
+spec:
+  rules:
+    - host: git.dev.saveonsp.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gitweb
+                port:
+                  number: 80
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: gitweb
+  name: repositories-storage-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+#apiVersion: v1
+#kind: ConfigMap
+#metadata:
+#  name: nginx-ingress-tcp-microk8s-conf
+#  namespace: ingress
+#data:
+#  2222: "gitweb/gitweb:2222"
+#---

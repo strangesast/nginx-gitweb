@@ -24,6 +24,7 @@ run ssh-keygen -A && \
   truncate -s0 /etc/motd
 
 volume /mnt/keys
+volume /home/git/repositories
 
 workdir /tmp
 copy sshd_config /etc/ssh/

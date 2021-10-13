@@ -1,6 +1,7 @@
 version: '3.9'
 services:
   nginx:
+    image: cr.dev.saveonsp.com/gitweb
     build:
       context: .
       dockerfile: Dockerfile
